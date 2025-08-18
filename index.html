@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sudoku 4×4 - แข่งขันหลายคน</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root{
+      --bg:#ffffff; --ink:#4b6b88; --ink-soft:#7ca7c8;
+      --tile-bg:#ffffff; --tile-border:#cfefff; --num:#2b6cb0;
+      --card-bg:#e9f6ff; --card-border:#9fd7ff; --card-ink:#2f7fb2;
+      --accent:#2c77ff; --shadow:0 6px 16px rgba(43,119,255,.12);
+      --select-ring: rgba(44,119,255,.45);
+      --select-bg: #f5faff;
+      --podium-1: #ffd700; --podium-2: #c0c0c0; --podium-3: #cd7f32;
+      --conflict:#ef4444; --given:#0ea5e9; --ok:#22c55e;
+      --hl:#fde68a; /* highlight row/col/subgrid */
+    }
+    :root[data-theme="pastel"]{ }
+    :root[data-theme="chalk"]{
+      --bg:#0c241a; --ink:#eaf7e0; --ink-soft:#bfe8c2; --tile-bg:#17382b; --tile-border:#2d6b52; --num:#eaf7e0;
+      --card-bg:#133529; --card-border:#5cbf98; --card-ink:#d7ffe9; --accent:#87e7b2; --select-ring:#87e7b2; --select-bg:#0e392c;
+      --hl:#254b3a; --conflict:#ff7f9f; --given:#3bcf7b; --ok:#a7f3d0;
+    }
+    :root[data-theme="blocks"]{
+      --bg:#fbfbfb; --ink:#2b2b2b; --ink-soft:#6a6a6a; --tile-bg:#ffffff; --tile-border:#e6e6e6; --num:#2d7ef7;
+      --card-bg:#f3f7ff; --card-border:#bcd7ff; --card-ink:#2d7ef7; --accent:#2d7ef7; --select-ring:#2d7ef7; --select-bg:#eef6ff;
+      --hl:#eef2ff; --conflict:#ef4444; --given:#1d4ed8; --ok:#22c55e;
+    }
+    :root[data-theme="contrast"]{
+      --bg:#ffffff; --ink:#111111; --ink-soft:#cccccc; --tile-bg:#ffffff; --tile-border:#000000; --num:#000000;
+      --card-bg:#ffffff; --card-border:#000000; --card-ink:#000000; --accent:#006CFF; --select-ring:#006CFF; --select-bg:#E8F0FF;
+      --hl:#f0f0f0; --conflict:#b91c1c; --given:#111; --ok:#16a34a;
+    }
+    :root[data-theme="neon"]{
+      --bg: radial-gradient(1200px 800px at 30% 10%, #0d1b2a 0%, #000 70%);
+      --ink:#d1e8ff; --ink-soft:#9cc9ff; --tile-bg:#0f2033; --tile-border:#1f3b5b; --num:#9ce6ff;
+      --card-bg:#0e2238; --card-border:#00e5ff; --card-ink:#9ce6ff; --accent:#00e5ff; --select-ring:#00e5ff; --select-bg:#0a2942;
+      --hl:#0f3653; --conflict:#ff2d95; --given:#ffc300; --ok:#00e5ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; font-size:16px;}
+    body{margin:0; background:var(--bg); color:var(--ink); font-family:"Kanit",system-ui,sans-serif; overflow-x:hidden;}
+    .center-container{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:1rem;}
+    .toast{visibility:hidden;min-width:250px;background:#333;color:#fff;text-align:center;border-radius:8px;padding:16px;position:fixed;z-index:100;left:50%;transform:translateX(-50%);bottom:30px;opacity:0;transition:opacity .3s,visibility .3s}
+    .toast.show{visibility:visible;opacity:1}
+
+    .app{display:grid;grid-template-columns:1fr;gap:1.5rem;width:100%;max-width:1200px;height:auto;min-height:100%;padding:1rem;margin:0 auto;}
+    .main-game{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;}
+
+    .game-header{display:flex;justify-content:space-between;align-items:flex-start;width:100%;max-width:550px;margin-bottom:1rem;}
+    .header-left,.header-right{flex:1;display:flex;flex-direction:column;gap:.5rem}
+    .header-left{align-items:flex-start}.header-right{align-items:flex-end}
+    .header-center{flex:1.5;text-align:center}
+    .icon-btn-group{display:flex;gap:.5rem}
+    .icon-btn{background:var(--tile-bg);border:2px solid var(--tile-border);color:var(--ink-soft);width:44px;height:44px;border-radius:.5rem;cursor:pointer;font-size:1.25rem;transition:all .2s}
+    .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+    #player-score-display{font-weight:600;font-size:1rem;color:var(--ink)}
+    #puzzle-progress{font-weight:600;font-size:1rem;color:var(--accent)}
+    .target-box{background:var(--accent);color:#fff;padding:.5rem 1rem;border-radius:.75rem;display:inline-block;margin-bottom:.5rem}
+    .target-box .target-label{font-size:.875rem;opacity:.9}
+    .target-box .target-number{font-size:1.25rem;font-weight:700;line-height:1}
+    #game-timer{font-size:1.25rem;font-weight:600;color:var(--ink)}
+
+    #game-board {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      flex-grow: 0;
+    }
+
+    .sudoku {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin: 1rem auto;
+      width: min(90vmin, 400px);
+      aspect-ratio: 1 / 1; 
+      border: 3px solid var(--ink, #111);
+      border-radius: .75rem;
+      overflow: hidden;
+    }
+
+    .cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--tile-bg);
+      border-right: 1px solid var(--ink-soft, #ccc);
+      border-bottom: 1px solid var(--ink-soft, #ccc);
+      border-radius: 0;
+      font-weight: 700;
+      color: var(--num);
+      font-size: clamp(1.5rem, 12vmin, 2.5rem);
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .15s, background .15s;
+      aspect-ratio: 1 / 1;
+    }
+
+    .cell:nth-child(4n) { border-right: none; }
+    .cell:nth-child(n+13) { border-bottom: none; }
+
+    .cell.given { color: var(--given); cursor: default; }
+    .cell.selected { box-shadow: 0 0 0 4px var(--select-ring); background: var(--select-bg); position: relative; z-index: 10; }
+    .cell.hl { background: var(--hl); }
+    .cell.conflict { background-color: #fee2e2; }
+    .cell.ok { background-color: #dcfce7; }
+    .cell.hl.conflict { background-color: #fecaca; }
+    .cell.hl.ok { background-color: #bbf7d0; }
+    .cell .tiny { font-size: 1rem; opacity: .6; }
+    .bR { border-right: 3px solid var(--ink, #111); }
+    .bB { border-bottom: 3px solid var(--ink, #111); }
+
+    .picker{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+    .pick{width:56px;height:56px;border-radius:.75rem;background:var(--tile-bg);border:2px solid var(--tile-border);font-weight:900;font-size:1.5rem;color:var(--ink);cursor:pointer;transition:.15s}
+    .pick:hover{border-color:var(--accent)}
+    .pick.erase{font-size:1.1rem}
+
+    .sidebar{background:var(--card-bg);border:2px solid var(--card-border);border-radius:1rem;padding:1rem;display:flex;flex-direction:column;order:-1}
+    .modal-content{background:#fff;color:#1f2937;padding:1.5rem;border-radius:1rem;width:100%;max-width:460px;box-shadow:0 18px 42px rgba(0,0,0,.35);text-align:center}
+    .modal-content h2{font-size:1.5rem;font-weight:700;margin-bottom:.5rem}
+    .modal-content p{color:#4b5563;margin-bottom:1rem}
+    .modal-content button:disabled{background:#9ca3af;cursor:not-allowed}
+    .modal-content input,.modal-content select{width:100%;padding:.75rem;border:1px solid #d1d5db;border-radius:.5rem;margin-bottom:1rem;text-align:center;font-size:1rem}
+    .modal-content button{width:100%;padding:.75rem 1rem;border-radius:.5rem;border:0;font-weight:700;cursor:pointer;background:#4f46e5;color:white;transition:background-color .2s}
+    .modal-content button:hover:not(:disabled){background:#4338ca}
+
+    .loader{border:5px solid #f3f3f3;border-top:5px solid var(--accent);border-radius:50%;width:50px;height:50px;animation:spin 1s linear infinite}
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    
+    body.player-view .sidebar{display:none}
+    body.player-view .app{ grid-template-columns: 1fr; place-items: center; }
+    body.player-view .main-game{justify-content:center}
+
+    .setting-group label{display:flex;align-items:center;justify-content:center;text-align:center;padding:.75rem;border:2px solid var(--tile-border);border-radius:.5rem;cursor:pointer;transition:.2s;min-height:50px}
+    .setting-group input[type="radio"]:checked+label{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+    .setting-group input[type="radio"]{display:none}
+
+    @media (min-width:900px){
+      .app{grid-template-columns:300px 1fr;height:auto;min-height:100%;padding:1.25rem}
+      body.player-view .app { grid-template-columns: 1fr; }
+      .sidebar{order:0}
+      .main-game{justify-content:center}
+    }
+    .hidden{display:none !important}
+  </style>
+</head>
+<body>
+
+  <div id="player-join-view" class="center-container">
+    <h1 class="text-5xl font-bold mb-4" style="color: var(--ink);">Sudoku Battle</h1>
+    <div class="w-full max-w-md flex flex-col items-center gap-4">
+        <div class="modal-content w-full">
+            <h2><i class="fas fa-users mr-2"></i>เข้าร่วมแข่งขัน</h2>
+            <p>ใส่รหัสเกมและชื่อเล่นของคุณ</p>
+            <input type="text" id="game-code-input" placeholder="รหัสเกม (2 หลัก)" maxlength="2" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+            <input type="text" id="player-name-input" placeholder="ชื่อเล่น" maxlength="15" autocomplete="nickname">
+            <button id="join-game-btn">เข้าร่วม</button>
+        </div>
+
+        <div class="text-center text-gray-500 my-1 font-semibold" style="color: var(--ink-soft);">หรือ</div>
+
+        <div class="modal-content w-full">
+             <h2><i class="fas fa-user mr-2"></i>โหมดฝึกซ้อม</h2>
+             <p>เล่นคนเดียวเพื่อฝึกฝนทักษะ</p>
+             <button id="start-practice-btn" style="background-color: #16a34a;">เริ่มโหมดฝึกซ้อม</button>
+        </div>
+    </div>
+  </div>
+
+
+  <div id="player-wait-view" class="hidden center-container">
+    <div class="modal-content">
+      <h2 class="text-2xl font-bold">เข้าร่วมสำเร็จ!</h2>
+      <p class="text-lg">กรุณารอผู้ควบคุมเริ่มเกมสักครู่...</p>
+      <div class="loader mt-4 mx-auto"></div>
+    </div>
+  </div>
+
+  <div id="game-view" class="app hidden">
+    <div class="sidebar hidden">
+      </div>
+    <div class="main-game">
+      <div class="game-header">
+        <div class="header-left">
+          <div class="icon-btn-group">
+            <button id="home-btn" class="icon-btn" title="ออกจากเกม"><i class="fas fa-home"></i></button>
+            <button id="reset-btn" class="icon-btn" title="เริ่มใหม่"><i class="fas fa-redo"></i></button>
+          </div>
+          <div id="player-score-display" class="hidden">คะแนน: 0</div>
+        </div>
+        <div class="header-center">
+          <div class="target-box">
+            <div class="target-label">เป้าหมาย</div>
+            <div id="target-number-display" class="target-number">Sudoku 4×4</div>
+          </div>
+          <div id="game-timer">เวลา: 01:00</div>
+        </div>
+        <div class="header-right">
+          <div id="puzzle-progress">ความคืบหน้า</div>
+        </div>
+      </div>
+
+      <div id="game-board">
+        <div id="sudoku" class="sudoku"></div>
+        <div class="picker mt-3" id="picker">
+          <button class="pick" data-n="1">1</button>
+          <button class="pick" data-n="2">2</button>
+          <button class="pick" data-n="3">3</button>
+          <button class="pick" data-n="4">4</button>
+          <button class="pick erase" data-n="0" title="ลบ"><i class="fa-solid fa-eraser"></i></button>
+        </div>
+      </div>
+
+      <div id="player-finished-view" class="hidden text-center">
+        <h2 class="text-2xl font-bold">เยี่ยมมาก!</h2>
+        <p class="text-lg">คุณไขปริศนาสำเร็จ</p>
+        <div id="practice-score-display" class="my-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-over-view" class="hidden center-container">
+      </div>
+
+  <div class="toast" id="toast"></div>
+
+ <script type="module" src="script.min.js"></script>
+ 
+</body>
+</html>
